@@ -650,7 +650,13 @@ def patch_get_by_hash(hash):
         dict.
     """
     try:
-        patch = Patch.objects.filter(hash=hash)[0]
+        patches = Patch.objects.filter(hash=hash)
+        idx = 0
+        cnt = patches.count()
+        if cnt > 0:
+            idx = cnt - 1
+
+        patch = patches[idx]
         return patch_to_dict(patch)
     except Patch.DoesNotExist:
         return {}
@@ -672,8 +678,14 @@ def patch_get_by_project_hash(project, hash):
         if any, else an empty dict.
     """
     try:
-        patch = Patch.objects.filter(project__linkname=project,
-                                     hash=hash)[0]
+        patches = Patch.objects.filter(project__linkname=project,
+                                       hash=hash)
+        idx = 0
+        cnt = patches.count()
+        if cnt > 0:
+            idx = cnt - 1
+
+        patch = patches[idx]
         return patch_to_dict(patch)
     except Patch.DoesNotExist:
         return {}
