@@ -1,9 +1,11 @@
 {% extends "base.html" %}
+{% load recaptcha2 %}
 
 {% block title %}Mail settings{% endblock %}
 {% block heading %}Mail settings{% endblock %}
 
 {% block body %}
+{% recaptcha_init %}
 
 <p>You can configure Patchwork to send you mail on certain events,
 or block automated mail altogether. Enter your email address to
@@ -24,6 +26,13 @@ view or change your email settings.</p>
   <td>
    {{form.email}}
    {{form.email.errors}}
+  </td>
+ </tr>
+ <tr>
+  <th>{{ form.captcha.label_tag }}</th>
+  <td>
+   {{form.captcha}}
+   {{form.captcha.errors}}
   </td>
  </tr>
  <tr>

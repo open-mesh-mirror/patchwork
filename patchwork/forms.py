@@ -13,6 +13,9 @@ from patchwork.models import Patch
 from patchwork.models import State
 from patchwork.models import UserProfile
 
+from snowpenguin.django.recaptcha2.fields import ReCaptchaField
+from snowpenguin.django.recaptcha2.widgets import ReCaptchaWidget
+
 
 class RegistrationForm(forms.Form):
     first_name = forms.CharField(max_length=30, required=False)
@@ -22,6 +25,7 @@ class RegistrationForm(forms.Form):
     email = forms.EmailField(max_length=100, label=u'Email address')
     password = forms.CharField(widget=forms.PasswordInput(),
                                label='Password')
+    captcha = ReCaptchaField(widget=ReCaptchaWidget())
 
     def clean_username(self):
         value = self.cleaned_data['username']
@@ -52,6 +56,7 @@ class LoginForm(forms.Form):
 
 class EmailForm(forms.Form):
     email = forms.EmailField(max_length=200)
+    captcha = ReCaptchaField(widget=ReCaptchaWidget())
 
 
 class BundleForm(forms.ModelForm):

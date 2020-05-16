@@ -1,9 +1,11 @@
 {% extends "base.html" %}
+{% load recaptcha2 %}
 
 {% block title %}Registration{% endblock %}
 {% block heading %}Registration{% endblock %}
 
 {% block body %}
+{% recaptcha_init %}
 
 {% if confirmation and not error %}
  <p>Registration successful!</p>
@@ -107,6 +109,21 @@
 {% endif %}
    </td>
   </tr>
+
+  <tr>
+   <td>{{ form.captcha.label_tag }}</td>
+   <td>
+{% if form.captcha.errors %}
+    {{ form.captcha.errors }}
+{% endif %}
+    {{ form.captcha }}
+{% if form.captcha.help_text %}
+    <div class="help_text"/>{{ form.captcha.help_text }}</div>
+{% endif %}
+   </td>
+  </tr>
+
+
 
    <tr>
   <td colspan="2" class="submitrow">
