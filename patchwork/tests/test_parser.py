@@ -12,6 +12,9 @@ import os
 import sys
 import unittest
 
+import django
+from django.db.transaction import atomic
+from django.db import connection
 from django.test import TestCase
 from django.test import TransactionTestCase
 from django.utils import six
@@ -20,6 +23,7 @@ from patchwork.models import Comment
 from patchwork.models import Patch
 from patchwork.models import Person
 from patchwork.models import State
+from patchwork.models import CoverLetter
 from patchwork.parser import clean_subject
 from patchwork.parser import get_or_create_author
 from patchwork.parser import find_patch_content as find_content
@@ -32,6 +36,7 @@ from patchwork.parser import parse_series_marker
 from patchwork.parser import parse_version
 from patchwork.parser import split_prefixes
 from patchwork.parser import subject_check
+from patchwork.parser import DuplicateMailError
 from patchwork.tests import TEST_MAIL_DIR
 from patchwork.tests import TEST_FUZZ_DIR
 from patchwork.tests.utils import create_project
@@ -367,6 +372,29 @@ class SenderCorrelationTest(TestCase):
 
         # X-Original-From header
         mail = self._create_email(munged_sender, None, None, real_sender)
+        person_b = get_or_create_author(mail, project)
+        self.assertEqual(person_b._state.adding, False)
+        self.assertEqual(person_b.id, person_a.id)
+
+    def test_weird_dmarc_munging(self):
+        project = create_project()
+        real_sender = 'Existing Sender <existing@example.com>'
+        munged_sender1 = "'Existing Sender' via <{}>".format(project.listemail)
+        munged_sender2 = "'Existing Sender' <{}>".format(project.listemail)
+
+        # Unmunged author
+        mail = self._create_email(real_sender)
+        person_a = get_or_create_author(mail, project)
+        person_a.save()
+
+        # Munged with no list name
+        mail = self._create_email(munged_sender1, None, None, real_sender)
+        person_b = get_or_create_author(mail, project)
+        self.assertEqual(person_b._state.adding, False)
+        self.assertEqual(person_b.id, person_a.id)
+
+        # Munged with no 'via'
+        mail = self._create_email(munged_sender2, None, None, real_sender)
         person_b = get_or_create_author(mail, project)
         self.assertEqual(person_b._state.adding, False)
         self.assertEqual(person_b.id, person_a.id)
@@ -1098,3 +1126,67 @@ class WeirdMailTest(TransactionTestCase):
 
     def test_x_face(self):
         self._test_patch('x-face.mbox')
+
+
+@unittest.skipIf(
+    django.VERSION < (2, 0),
+    'Django 1.11 does not provide an easy DB query introspection API'
+)
+class DuplicateMailTest(TestCase):
+    def setUp(self):
+        self.listid = 'patchwork.ozlabs.org'
+        create_project(listid=self.listid)
+        create_state()
+
+    def _test_duplicate_mail(self, mail):
+        errors = []
+
+        def log_query_errors(execute, sql, params, many, context):
+            try:
+                result = execute(sql, params, many, context)
+            except Exception as e:
+                errors.append(e)
+                raise
+            return result
+
+        _parse_mail(mail)
+
+        with self.assertRaises(DuplicateMailError):
+            with connection.execute_wrapper(log_query_errors):
+                # If we see any database errors from the duplicate insert
+                # (typically an IntegrityError), the insert will abort the
+                # current transaction. This atomic() ensures that we can
+                # recover, and perform subsequent queries.
+                with atomic():
+                    _parse_mail(mail)
+
+        self.assertEqual(errors, [])
+
+    def test_duplicate_patch(self):
+        diff = read_patch('0001-add-line.patch')
+        m = create_email(diff, listid=self.listid, msgid='1@example.com')
+
+        self._test_duplicate_mail(m)
+
+        self.assertEqual(Patch.objects.count(), 1)
+
+    def test_duplicate_comment(self):
+        diff = read_patch('0001-add-line.patch')
+        m1 = create_email(diff, listid=self.listid, msgid='1@example.com')
+        _parse_mail(m1)
+
+        m2 = create_email('test', listid=self.listid, msgid='2@example.com',
+                          in_reply_to='1@example.com')
+        self._test_duplicate_mail(m2)
+
+        self.assertEqual(Patch.objects.count(), 1)
+        self.assertEqual(Comment.objects.count(), 1)
+
+    def test_duplicate_coverletter(self):
+        m = create_email('test', listid=self.listid, msgid='1@example.com')
+        del m['Subject']
+        m['Subject'] = '[PATCH 0/1] test cover letter'
+
+        self._test_duplicate_mail(m)
+
+        self.assertEqual(CoverLetter.objects.count(), 1)

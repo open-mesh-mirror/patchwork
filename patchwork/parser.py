@@ -392,6 +392,13 @@ def get_original_sender(mail, name, email):
         # Mailman uses the format "<name> via <list>"
         # Google Groups uses "'<name>' via <list>"
         stripped_name = name[:name.rfind(' via ')].strip().strip("'")
+    elif name.endswith(' via'):
+        # Sometimes this seems to happen (perhaps if Mailman isn't set up with
+        # any list name)
+        stripped_name = name[:name.rfind(' via')].strip().strip("'")
+    else:
+        # We've hit a format that we don't expect
+        stripped_name = None
 
     original_from = clean_header(mail.get('X-Original-From', ''))
     if original_from:
@@ -1085,7 +1092,10 @@ def parse_mail(mail, list_id=None):
             filenames = find_filenames(diff)
             delegate = find_delegate_by_filename(project, filenames)
 
-        try:
+        with transaction.atomic():
+            if Patch.objects.filter(project=project, msgid=msgid):
+                raise DuplicateMailError(msgid=msgid)
+
             patch = Patch.objects.create(
                 msgid=msgid,
                 project=project,
@@ -1100,8 +1110,6 @@ def parse_mail(mail, list_id=None):
                 delegate=delegate,
                 state=find_state(mail))
             logger.debug('Patch saved')
-        except IntegrityError:
-            raise DuplicateMailError(msgid=msgid)
 
         for attempt in range(1, 11):  # arbitrary retry count
             try:
@@ -1242,7 +1250,10 @@ def parse_mail(mail, list_id=None):
                 SeriesReference.objects.create(
                     msgid=msgid, project=project, series=series)
 
-            try:
+            with transaction.atomic():
+                if CoverLetter.objects.filter(project=project, msgid=msgid):
+                    raise DuplicateMailError(msgid=msgid)
+
                 cover_letter = CoverLetter.objects.create(
                     msgid=msgid,
                     project=project,
@@ -1251,8 +1262,6 @@ def parse_mail(mail, list_id=None):
                     headers=headers,
                     submitter=author,
                     content=message)
-            except IntegrityError:
-                raise DuplicateMailError(msgid=msgid)
 
             logger.debug('Cover letter saved')
 
@@ -1269,7 +1278,9 @@ def parse_mail(mail, list_id=None):
 
     author = get_or_create_author(mail, project)
 
-    try:
+    with transaction.atomic():
+        if Comment.objects.filter(submission=submission, msgid=msgid):
+            raise DuplicateMailError(msgid=msgid)
         comment = Comment.objects.create(
             submission=submission,
             msgid=msgid,
@@ -1277,8 +1288,6 @@ def parse_mail(mail, list_id=None):
             headers=headers,
             submitter=author,
             content=message)
-    except IntegrityError:
-        raise DuplicateMailError(msgid=msgid)
 
     logger.debug('Comment saved')
 
