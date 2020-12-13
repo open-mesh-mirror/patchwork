@@ -13,7 +13,6 @@ from rest_framework.serializers import SlugRelatedField
 from patchwork.api.embedded import CheckSerializer
 from patchwork.api.embedded import CoverLetterSerializer
 from patchwork.api.embedded import PatchSerializer
-from patchwork.api.embedded import PatchRelationSerializer
 from patchwork.api.embedded import ProjectSerializer
 from patchwork.api.embedded import SeriesSerializer
 from patchwork.api.embedded import UserSerializer
@@ -34,8 +33,8 @@ class EventSerializer(ModelSerializer):
     current_delegate = UserSerializer()
     created_check = SerializerMethodField()
     created_check = CheckSerializer()
-    previous_relation = PatchRelationSerializer(read_only=True)
-    current_relation = PatchRelationSerializer(read_only=True)
+    previous_relation = SerializerMethodField()
+    current_relation = SerializerMethodField()
 
     _category_map = {
         Event.CATEGORY_COVER_CREATED: ['cover'],
@@ -51,6 +50,12 @@ class EventSerializer(ModelSerializer):
         Event.CATEGORY_SERIES_CREATED: ['series'],
         Event.CATEGORY_SERIES_COMPLETED: ['series'],
     }
+
+    def get_previous_relation(self, instance):
+        return None
+
+    def get_current_relation(self, instance):
+        return None
 
     def to_representation(self, instance):
         data = super(EventSerializer, self).to_representation(instance)
@@ -71,10 +76,12 @@ class EventSerializer(ModelSerializer):
 
     class Meta:
         model = Event
-        fields = ('id', 'category', 'project', 'date', 'actor', 'patch',
-                  'series', 'cover', 'previous_state', 'current_state',
-                  'previous_delegate', 'current_delegate', 'created_check',
-                  'previous_relation', 'current_relation',)
+        fields = (
+            'id', 'category', 'project', 'date', 'actor', 'patch',
+            'series', 'cover', 'previous_state', 'current_state',
+            'previous_delegate', 'current_delegate', 'created_check',
+            'previous_relation', 'current_relation',
+        )
         read_only_fields = fields
         versioned_fields = {
             '1.2': ('actor', ),

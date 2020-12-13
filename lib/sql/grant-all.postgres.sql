@@ -72,7 +72,9 @@ GRANT INSERT, SELECT ON
 	patchwork_comment,
 	patchwork_coverletter,
 	patchwork_event,
-	patchwork_seriesreference,
+	patchwork_seriesreference
+TO "nobody";
+GRANT INSERT, SELECT, UPDATE ON
 	patchwork_submission
 TO "nobody";
 GRANT INSERT, SELECT, UPDATE, DELETE ON
@@ -82,6 +84,7 @@ GRANT INSERT, SELECT, UPDATE, DELETE ON
 	patchwork_series
 TO "nobody";
 GRANT SELECT ON
+	auth_user,
 	patchwork_delegationrule,
 	patchwork_project,
 	patchwork_state,
