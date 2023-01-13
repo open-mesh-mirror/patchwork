@@ -34,7 +34,7 @@ def register(request):
 
     if request.method == 'POST':
         form = RegistrationForm(request.POST)
-        if form.is_valid():
+        if form.is_valid() and False:
             data = form.cleaned_data
 
             # create inactive user
